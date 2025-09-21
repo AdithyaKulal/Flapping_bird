@@ -52,37 +52,14 @@ export function SkyFlapGame() {
     }
   }, [gameState]);
 
-  const handleUserAction = useCallback(() => {
-    if (gameState === 'playing') {
-      flap();
-    } else if (gameState === 'waiting') {
-      setGameState('playing');
-      // Initial flap
-      flap();
-    } else if (gameState === 'gameOver') {
-       // Reset and start new game
-       setBirdY(dimensions.height / 2);
-       setBirdVelocity(0);
-       setBirdRotation(0);
-       setPipes([]);
-       setScore(0);
-       setGameState('playing');
-       flap();
-    }
-  }, [gameState, flap, dimensions.height]);
+  const resetGame = useCallback(async () => {
+    setGameState('waiting');
+    setBirdY(dimensions.height / 2);
+    setBirdVelocity(0);
+    setBirdRotation(0);
+    setPipes([]);
+    setScore(0);
 
-  const handleGameOver = useCallback(async () => {
-    if (gameState === 'gameOver') return;
-
-    setGameState('gameOver');
-    if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
-    if (pipeSpawnTimerRef.current) clearTimeout(pipeSpawnTimerRef.current);
-
-
-    const newHighScore = Math.max(score, highScore);
-    setHighScore(newHighScore);
-    localStorage.setItem('skyFlapHighScore', newHighScore.toString());
-    
     const newGamesPlayed = gamesPlayed + 1;
     setGamesPlayed(newGamesPlayed);
     localStorage.setItem('skyFlapGamesPlayed', newGamesPlayed.toString());
@@ -92,7 +69,7 @@ export function SkyFlapGame() {
         score,
         pipesPassed: score,
         gamesPlayed: newGamesPlayed,
-        highScore: newHighScore,
+        highScore,
       });
       setGameSettings(prev => ({ ...prev, ...nextDifficulty }));
     } catch (error) {
@@ -103,8 +80,35 @@ export function SkyFlapGame() {
         variant: "destructive",
       });
     }
-  }, [gameState, score, highScore, gamesPlayed, toast]);
-  
+
+    // Immediately start the new game
+    setGameState('playing');
+    flap();
+  }, [dimensions.height, gamesPlayed, score, highScore, toast, flap]);
+
+  const handleUserAction = useCallback(() => {
+    if (gameState === 'playing') {
+      flap();
+    } else if (gameState === 'waiting') {
+      setGameState('playing');
+      flap();
+    } else if (gameState === 'gameOver') {
+      resetGame();
+    }
+  }, [gameState, flap, resetGame]);
+
+  const handleGameOver = useCallback(() => {
+    if (gameState === 'gameOver') return;
+
+    setGameState('gameOver');
+    if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
+    if (pipeSpawnTimerRef.current) clearTimeout(pipeSpawnTimerRef.current);
+
+    const newHighScore = Math.max(score, highScore);
+    setHighScore(newHighScore);
+    localStorage.setItem('skyFlapHighScore', newHighScore.toString());
+  }, [gameState, score, highScore]);
+
   const gameLoop = useCallback(() => {
     if (gameState !== 'playing') return;
   
@@ -155,7 +159,8 @@ export function SkyFlapGame() {
     }
   
     if (isGameOver) {
-      handleGameOver();
+        // Use a function to safely trigger game over logic outside of the direct render path
+        requestAnimationFrame(handleGameOver);
     } else {
       setBirdY(newBirdY);
       setBirdVelocity(newBirdVelocity);
@@ -178,16 +183,15 @@ export function SkyFlapGame() {
       pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate);
     };
     
-    // Clear any existing timer before starting a new one
     if (pipeSpawnTimerRef.current) clearTimeout(pipeSpawnTimerRef.current);
-    pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate);
+    pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate / gameSettings.gameSpeedMultiplier);
 
     return () => {
       if (pipeSpawnTimerRef.current) {
         clearTimeout(pipeSpawnTimerRef.current);
       }
     };
-  }, [gameState, dimensions.width, dimensions.height, gameSettings.pipeGapSize, gameSettings.pipeSpawnRate]);
+  }, [gameState, dimensions.width, dimensions.height, gameSettings.pipeGapSize, gameSettings.pipeSpawnRate, gameSettings.gameSpeedMultiplier, pipes]);
 
   // Main Game Loop Controller
   useEffect(() => {
@@ -253,7 +257,7 @@ export function SkyFlapGame() {
   }, [handleUserAction]);
 
   return (
-    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline">
+    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline" onClick={handleUserAction}>
       <AnimatedBackground />
 
       <Bird y={birdY} rotation={birdRotation} />
@@ -271,7 +275,7 @@ export function SkyFlapGame() {
       {gameState === 'playing' && <Score score={score} />}
       {gameState === 'waiting' && <StartScreen />}
       {gameState === 'gameOver' && (
-        <GameOverScreen score={score} highScore={highScore} onRestart={handleUserAction} />
+        <GameOverScreen score={score} highScore={highScore} onRestart={resetGame} />
       )}
     </main>
   );
