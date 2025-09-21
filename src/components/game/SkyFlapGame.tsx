@@ -12,11 +12,11 @@ import { GameOverScreen } from './GameOverScreen';
 
 // Game Constants
 const BIRD_SIZE = 40;
-const GRAVITY = 0.15;
-const JUMP_STRENGTH = -4;
+const GRAVITY = 0.1;
+const JUMP_STRENGTH = -3.5;
 const BIRD_ROTATION_UP = -20;
 const BIRD_ROTATION_DOWN = 40;
-const COLLISION_BUFFER = 10; // Adds a small buffer to make collision less strict
+const COLLISION_BUFFER = 5; // A small buffer to make collision a little more forgiving
 
 const INITIAL_GAME_SETTINGS = {
   gameSpeedMultiplier: 1.2,
@@ -74,7 +74,16 @@ export function SkyFlapGame() {
     return () => window.removeEventListener('resize', updateDimensions);
   }, [gameState]);
 
-
+  const startGame = useCallback(() => {
+    setGameState('playing');
+    setBirdY(gameDimensions.height / 2);
+    setBirdVelocity(0);
+    setPipes([]);
+    setScore(0);
+    // Give the bird an initial flap
+    setBirdVelocity(JUMP_STRENGTH);
+  }, [gameDimensions.height]);
+  
   const flap = useCallback(() => {
     if (gameState === 'playing') {
       setBirdVelocity(JUMP_STRENGTH);
@@ -202,17 +211,6 @@ export function SkyFlapGame() {
     gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, [birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState]);
   
- const startGame = useCallback(() => {
-    setGameState('playing');
-    setBirdY(gameDimensions.height / 2);
-    setBirdVelocity(0);
-    setPipes([]);
-    setScore(0);
-    // Give the bird an initial flap
-    setBirdVelocity(JUMP_STRENGTH);
-  }, [gameDimensions.height]);
-
-
   const restartGame = useCallback(() => {
     startGame();
   }, [startGame]);
@@ -240,6 +238,8 @@ export function SkyFlapGame() {
             flap();
         } else if (gameState === 'waiting') {
             startGame();
+        } else if (gameState === 'gameOver') {
+            restartGame();
         }
     };
   
@@ -264,7 +264,7 @@ export function SkyFlapGame() {
       window.removeEventListener('keydown', keydownHandler);
       window.removeEventListener('touchend', handleAction);
     };
-  }, [gameState, flap, startGame]);
+  }, [gameState, flap, startGame, restartGame]);
 
 
   return (
