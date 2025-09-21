@@ -11,8 +11,8 @@ import { StartScreen } from './StartScreen';
 import { GameOverScreen } from './GameOverScreen';
 
 // Game Constants
-const GRAVITY = 0.25;
-const JUMP_STRENGTH = -5;
+const GRAVITY = 0.2;
+const JUMP_STRENGTH = -4.5;
 const BIRD_SIZE = 40;
 const PIPE_WIDTH = 80;
 
@@ -42,7 +42,6 @@ export function SkyFlapGame() {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const gameLoopRef = useRef<number | null>(null);
-  const lastTimeRef = useRef<number>(0);
   const pipeTimerRef = useRef(0);
 
   const { toast } = useToast();
@@ -51,25 +50,30 @@ export function SkyFlapGame() {
     setBirdVelocity(JUMP_STRENGTH);
   }, []);
 
-  const handleUserAction = useCallback(() => {
-    if (gameState === 'playing') {
-      flap();
-    } else if (gameState === 'waiting') {
-      setGameState('playing');
-      flap();
-    }
-  }, [gameState, flap]);
+  const startGame = useCallback(() => {
+    setGameState('playing');
+    flap();
+  }, [flap]);
 
   const resetGame = useCallback(() => {
-    setGameState('waiting');
     setBirdY(dimensions.height / 2);
     setBirdVelocity(0);
     setBirdRotation(0);
     setPipes([]);
     setScore(0);
     pipeTimerRef.current = 0;
-    lastTimeRef.current = 0;
-  }, [dimensions.height]);
+    setGameState('playing');
+    flap();
+  }, [dimensions.height, flap]);
+
+  const handleUserAction = useCallback(() => {
+    if (gameState === 'playing') {
+      flap();
+    } else if (gameState === 'waiting') {
+      startGame();
+    }
+  }, [gameState, flap, startGame]);
+
 
   const handleGameOver = useCallback(async () => {
     if (gameState === 'gameOver') return;
@@ -102,22 +106,13 @@ export function SkyFlapGame() {
   }, [gameState, score, highScore, gamesPlayed, toast]);
 
 
-  const gameLoop = useCallback((time: number) => {
-    if (lastTimeRef.current === 0) {
-      lastTimeRef.current = time;
-      gameLoopRef.current = requestAnimationFrame(gameLoop);
-      return;
-    }
-
-    const deltaTime = time - lastTimeRef.current;
-    lastTimeRef.current = time;
-
+  const gameLoop = useCallback((deltaTime: number) => {
     // Bird physics
-    const newVelocity = birdVelocity + GRAVITY;
-    const newY = birdY + newVelocity;
+    let newVelocity = birdVelocity + GRAVITY;
+    let newY = birdY + newVelocity;
     
     // Bird rotation
-    const rotation = Math.max(-30, Math.min(90, newVelocity * 5));
+    let rotation = Math.max(-30, Math.min(90, newVelocity * 5));
     
     // Pipe management
     let newPipes = [...pipes];
@@ -144,7 +139,7 @@ export function SkyFlapGame() {
 
     // Collision detection
     const birdLeft = dimensions.width * 0.2 - BIRD_SIZE / 2;
-    const birdRight = dimensions.width * 0.2 + BIRD_SIZE / 2;
+    const birdRight = birdLeft + BIRD_SIZE;
     const birdTop = newY - BIRD_SIZE / 2;
     const birdBottom = newY + BIRD_SIZE / 2;
     
@@ -164,22 +159,43 @@ export function SkyFlapGame() {
         break;
       }
     }
-    
+
     if (isGameOver) {
       handleGameOver();
     } else {
-      setBirdY(newY);
-      setBirdVelocity(newVelocity);
-      setBirdRotation(rotation);
-      setPipes(newPipes);
-      if (scoreHasUpdated) {
-        setScore(s => s + 1);
-      }
+        setBirdY(newY);
+        setBirdVelocity(newVelocity);
+        setBirdRotation(rotation);
+        setPipes(newPipes);
+        if (scoreHasUpdated) {
+            setScore(s => s + 1);
+        }
     }
 
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, [birdY, birdVelocity, pipes, dimensions, gameSettings, handleGameOver, score]);
   
+  useEffect(() => {
+    let lastTime = 0;
+    const loop = (time: number) => {
+        if(lastTime > 0) {
+            const deltaTime = time - lastTime;
+            if(gameState === 'playing') {
+                gameLoop(deltaTime);
+            }
+        }
+        lastTime = time;
+        gameLoopRef.current = requestAnimationFrame(loop);
+    };
+    gameLoopRef.current = requestAnimationFrame(loop);
+
+    return () => {
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current);
+      }
+    };
+  }, [gameState, gameLoop]);
+
+
   useEffect(() => {
     const handleResize = () => {
       setDimensions({ width: window.innerWidth, height: window.innerHeight });
@@ -198,22 +214,6 @@ export function SkyFlapGame() {
     return () => window.removeEventListener('resize', handleResize);
   }, [gameState]);
 
-  useEffect(() => {
-    if (gameState === 'playing') {
-      lastTimeRef.current = 0;
-      gameLoopRef.current = requestAnimationFrame(gameLoop);
-    } else {
-      if (gameLoopRef.current) {
-        cancelAnimationFrame(gameLoopRef.current);
-        gameLoopRef.current = null;
-      }
-    }
-    return () => {
-      if (gameLoopRef.current) {
-        cancelAnimationFrame(gameLoopRef.current);
-      }
-    };
-  }, [gameState, gameLoop]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
