@@ -74,13 +74,12 @@ export function SkyFlapGame() {
     setGameState('waiting');
     setGamesPlayed(prev => prev + 1);
 
-    setGameSettings({
-      ...INITIAL_GAME_SETTINGS,
-      pipeGapSize: gameSettings.pipeGapSize
-    });
-
+    setGameSettings(prev => ({
+        ...INITIAL_GAME_SETTINGS,
+        pipeGapSize: prev.pipeGapSize,
+    }));
     startGame();
-  }, [startGame, gameSettings.pipeGapSize]);
+  }, [startGame]);
 
   const handleUserAction = useCallback(() => {
     if (gameState === 'playing') {
@@ -207,17 +206,15 @@ export function SkyFlapGame() {
       // --- Responsive Scaling Logic ---
       const heightRatio = newDimensions.height / BASE_HEIGHT;
       
-      // Scale Jump Strength
-      const scaledJump = BASE_JUMP_STRENGTH * heightRatio;
       setPhysics({
         gravity: BASE_GRAVITY * heightRatio,
-        jumpStrength: scaledJump,
+        jumpStrength: BASE_JUMP_STRENGTH * heightRatio,
       });
 
       // Scale Pipe Gap - making it INVERSELY proportional to screen height
       // Smaller screen = bigger gap.
       const invertedRatio = 1 / Math.max(0.5, heightRatio);
-      const newPipeGap = Math.max(180, Math.min(300, 200 * invertedRatio));
+      const newPipeGap = Math.max(180, Math.min(300, 220 * invertedRatio));
       setGameSettings(prev => ({...prev, pipeGapSize: newPipeGap }));
 
       if (gameState === 'waiting') {
