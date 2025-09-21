@@ -14,14 +14,14 @@ import { GameOverScreen } from './GameOverScreen';
 const GRAVITY = 0.17;
 const JUMP_STRENGTH = -4.0;
 const BIRD_SIZE = 40;
-const BIRD_X = 80;
 const PIPE_WIDTH = 80;
+const BIRD_X = 80;
 
 const INITIAL_GAME_SETTINGS = {
   gameSpeedMultiplier: 1.5,
   pipeGapSize: 220,
   pipeSpawnRate: 1400,
-  difficultyLevel: 'easy',
+  difficultyLevel: 'easy' as 'easy' | 'medium' | 'hard',
 };
 
 type PipeState = {
@@ -43,7 +43,7 @@ export function SkyFlapGame() {
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const gameLoopRef = useRef<number | null>(null);
-  const pipeSpawnTimerRef = useRef<number | null>(null);
+  const pipeSpawnTimerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const flap = useCallback(() => {
@@ -52,37 +52,24 @@ export function SkyFlapGame() {
     }
   }, [gameState]);
 
-  const startGame = useCallback(() => {
-    setGameState('playing');
-    setBirdY(dimensions.height / 2);
-    setBirdVelocity(0);
-    setBirdRotation(0);
-    setPipes([]);
-    setScore(0);
-    // Initial flap
-    setBirdVelocity(JUMP_STRENGTH);
-  }, [dimensions.height]);
-
-  const resetGame = useCallback(() => {
-    setGameState('waiting');
-    setBirdY(dimensions.height / 2);
-    setBirdVelocity(0);
-    setBirdRotation(0);
-    setPipes([]);
-    setScore(0);
-  }, [dimensions.height]);
-
-
   const handleUserAction = useCallback(() => {
     if (gameState === 'playing') {
       flap();
     } else if (gameState === 'waiting') {
-      startGame();
+      setGameState('playing');
+      // Initial flap
+      flap();
     } else if (gameState === 'gameOver') {
-      resetGame();
-      startGame();
+       // Reset and start new game
+       setBirdY(dimensions.height / 2);
+       setBirdVelocity(0);
+       setBirdRotation(0);
+       setPipes([]);
+       setScore(0);
+       setGameState('playing');
+       flap();
     }
-  }, [gameState, flap, startGame, resetGame]);
+  }, [gameState, flap, dimensions.height]);
 
   const handleGameOver = useCallback(async () => {
     if (gameState === 'gameOver') return;
@@ -119,66 +106,64 @@ export function SkyFlapGame() {
   }, [gameState, score, highScore, gamesPlayed, toast]);
   
   const gameLoop = useCallback(() => {
-    // Bird physics
-    setBirdVelocity(v => {
-      const newVelocity = v + GRAVITY;
-      setBirdY(y => y + newVelocity);
-      setBirdRotation(Math.max(-30, Math.min(90, newVelocity * 6)));
-      return newVelocity;
-    });
-
-    // Pipe movement
-    setPipes(prevPipes =>
-      prevPipes.map(p => ({ ...p, x: p.x - 2 * gameSettings.gameSpeedMultiplier }))
-    );
-
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameSettings.gameSpeedMultiplier]);
-
-  // Collision and Game Logic Effect
-  useEffect(() => {
     if (gameState !== 'playing') return;
-
-    // Floor and Ceiling collision
-    if (birdY + BIRD_SIZE / 2 > dimensions.height || birdY - BIRD_SIZE / 2 < 0) {
-      handleGameOver();
-      return;
+  
+    // Bird physics
+    let newBirdVelocity = birdVelocity + GRAVITY;
+    let newBirdY = birdY + newBirdVelocity;
+    let newBirdRotation = Math.max(-30, Math.min(90, newBirdVelocity * 6));
+  
+    // Pipe movement and scoring
+    let newPipes = pipes.map(p => ({ ...p, x: p.x - 2 * gameSettings.gameSpeedMultiplier }));
+  
+    const scorePipe = newPipes.find(p => !p.passed && p.x + PIPE_WIDTH < BIRD_X);
+    if (scorePipe) {
+      setScore(s => s + 1);
+      newPipes = newPipes.map(p =>
+        p.x === scorePipe.x ? { ...p, passed: true } : p
+      );
     }
-
-    // Pipe collision
-    const birdRadius = BIRD_SIZE / 2 - 2; // Tighter hitbox
+  
+    // Collision detection
+    let isGameOver = false;
+    const birdRadius = BIRD_SIZE / 2 - 10;
     const birdLeft = BIRD_X - birdRadius;
     const birdRight = BIRD_X + birdRadius;
-    const birdTop = birdY - birdRadius;
-    const birdBottom = birdY + birdRadius;
-
-    for (const pipe of pipes) {
+    const birdTop = newBirdY - birdRadius;
+    const birdBottom = newBirdY + birdRadius;
+  
+    // Floor and Ceiling collision
+    if (newBirdY + BIRD_SIZE / 2 > dimensions.height || newBirdY - BIRD_SIZE / 2 < 0) {
+      isGameOver = true;
+    }
+  
+    // Pipe collision
+    for (const pipe of newPipes) {
       const pipeLeft = pipe.x;
       const pipeRight = pipe.x + PIPE_WIDTH;
       const gapTop = pipe.topHeight;
       const gapBottom = pipe.topHeight + gameSettings.pipeGapSize;
-
+  
       if (
         birdRight > pipeLeft &&
         birdLeft < pipeRight &&
         (birdTop < gapTop || birdBottom > gapBottom)
       ) {
-        handleGameOver();
-        return;
+        isGameOver = true;
+        break; 
       }
     }
-
-    // Scoring
-    const scorePipe = pipes.find(p => !p.passed && p.x + PIPE_WIDTH < BIRD_X);
-    if (scorePipe) {
-      setScore(s => s + 1);
-      setPipes(prevPipes =>
-        prevPipes.map(p =>
-          p.x === scorePipe.x ? { ...p, passed: true } : p
-        )
-      );
+  
+    if (isGameOver) {
+      handleGameOver();
+    } else {
+      setBirdY(newBirdY);
+      setBirdVelocity(newBirdVelocity);
+      setBirdRotation(newBirdRotation);
+      setPipes(newPipes.filter(p => p.x > -PIPE_WIDTH));
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
     }
-  }, [birdY, pipes, gameState, dimensions.height, gameSettings.pipeGapSize, handleGameOver]);
+  }, [birdY, birdVelocity, pipes, gameState, dimensions.height, gameSettings.gameSpeedMultiplier, gameSettings.pipeGapSize, handleGameOver]);
 
   // Pipe Generation Effect
   useEffect(() => {
@@ -189,11 +174,12 @@ export function SkyFlapGame() {
       const maxTop = dimensions.height * 0.85 - gameSettings.pipeGapSize;
       const topHeight = Math.random() * (maxTop - minTop) + minTop;
       
-      setPipes(prev => [...prev.filter(p => p.x > -PIPE_WIDTH), { x: dimensions.width, topHeight, passed: false }]);
-
+      setPipes(prev => [...prev, { x: dimensions.width, topHeight, passed: false }]);
       pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate);
     };
-
+    
+    // Clear any existing timer before starting a new one
+    if (pipeSpawnTimerRef.current) clearTimeout(pipeSpawnTimerRef.current);
     pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate);
 
     return () => {
@@ -207,6 +193,10 @@ export function SkyFlapGame() {
   useEffect(() => {
     if (gameState === 'playing') {
       gameLoopRef.current = requestAnimationFrame(gameLoop);
+    } else {
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current);
+      }
     }
     return () => {
       if (gameLoopRef.current) {
@@ -233,8 +223,10 @@ export function SkyFlapGame() {
     const storedGamesPlayed = localStorage.getItem('skyFlapGamesPlayed');
     if (storedGamesPlayed) setGamesPlayed(parseInt(storedGamesPlayed, 10));
 
+    setBirdY(window.innerHeight / 2);
+
     return () => window.removeEventListener('resize', handleResize);
-  }, [gameState]);
+  }, []); // Only run on initial mount
 
 
   useEffect(() => {
@@ -244,14 +236,19 @@ export function SkyFlapGame() {
         handleUserAction();
       }
     };
+
+    const handleInteraction = (e: MouseEvent | TouchEvent) => {
+      e.preventDefault();
+      handleUserAction();
+    }
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('click', handleUserAction);
-    window.addEventListener('touchstart', handleUserAction);
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
     
     return () => {
         window.removeEventListener('keydown', handleKeyDown);
-        window.removeEventListener('click', handleUserAction);
-        window.removeEventListener('touchstart', handleUserAction);
+        window.removeEventListener('click', handleInteraction);
+        window.removeEventListener('touchstart', handleInteraction);
     };
   }, [handleUserAction]);
 
