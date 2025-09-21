@@ -12,11 +12,10 @@ import { GameOverScreen } from './GameOverScreen';
 
 // Game Constants
 const BIRD_SIZE = 40;
-const GRAVITY = 0.03;
-const JUMP_STRENGTH = -1.5;
+const GRAVITY = 0.2;
+const JUMP_STRENGTH = -5;
 const BIRD_ROTATION_UP = -20;
 const BIRD_ROTATION_DOWN = 40;
-const COLLISION_BUFFER = 15; // Makes the bird's effective hitbox smaller
 
 const INITIAL_GAME_SETTINGS = {
   gameSpeedMultiplier: 1.2,
@@ -79,7 +78,7 @@ export function SkyFlapGame() {
       setBirdVelocity(JUMP_STRENGTH);
     }
   }, [gameState]);
-  
+
   const startGame = useCallback(() => {
     setGameState('playing');
     setBirdY(gameDimensions.height / 2);
@@ -140,14 +139,11 @@ export function SkyFlapGame() {
     lastTimeRef.current = timestamp;
 
     // Bird physics
-    let newY, newVelocity;
-    setBirdY(y => {
-      newVelocity = birdVelocity + GRAVITY;
-      newY = y + newVelocity;
-      return newY;
-    });
-    setBirdVelocity(newVelocity!);
-    setBirdRotation(Math.max(BIRD_ROTATION_UP, Math.min(BIRD_ROTATION_DOWN, newVelocity! * 5)));
+    const newVelocity = birdVelocity + GRAVITY;
+    const newY = birdY + newVelocity;
+    setBirdVelocity(newVelocity);
+    setBirdY(newY);
+    setBirdRotation(Math.max(BIRD_ROTATION_UP, Math.min(BIRD_ROTATION_DOWN, newVelocity * 5)));
 
 
     // Pipe management
@@ -176,34 +172,36 @@ export function SkyFlapGame() {
     }
     setPipes(newPipes);
     
+    // Collision Detection
+    const birdLeft = gameDimensions.width * 0.2 - BIRD_SIZE / 2;
+    const birdRight = gameDimensions.width * 0.2 + BIRD_SIZE / 2;
+    const birdTop = newY - BIRD_SIZE / 2;
+    const birdBottom = newY + BIRD_SIZE / 2;
+    
     // Ground and ceiling collision
-    const birdTop = newY! - BIRD_SIZE / 2;
-    const birdBottom = newY! + BIRD_SIZE / 2;
     if (birdBottom > gameDimensions.height || birdTop < 0) {
       handleGameOver();
       return;
     }
     
     // Pipe collision
-    const birdLeft = gameDimensions.width * 0.2 - BIRD_SIZE / 2 + COLLISION_BUFFER;
-    const birdRight = gameDimensions.width * 0.2 + BIRD_SIZE / 2 - COLLISION_BUFFER;
-    const birdTopWithBuffer = newY! - BIRD_SIZE / 2 + COLLISION_BUFFER;
-    const birdBottomWithBuffer = newY! + BIRD_SIZE / 2 - COLLISION_BUFFER;
-
     for (const pipe of newPipes) {
-      const pipeLeft = pipe.x;
-      const pipeRight = pipe.x + gameSettings.pipeWidth;
-      const pipeTopHeight = pipe.topHeight;
-      const pipeBottomY = pipe.topHeight + gameSettings.pipeGapSize;
+        const pipeLeft = pipe.x;
+        const pipeRight = pipe.x + gameSettings.pipeWidth;
+        const pipeTopHeight = pipe.topHeight;
+        const pipeBottomY = pipe.topHeight + gameSettings.pipeGapSize;
 
-      if (birdRight > pipeLeft && birdLeft < pipeRight && (birdTopWithBuffer < pipeTopHeight || birdBottomWithBuffer > pipeBottomY)) {
-        handleGameOver();
-        return;
-      }
+        const isCollidingX = birdRight > pipeLeft && birdLeft < pipeRight;
+        const isCollidingY = birdTop < pipeTopHeight || birdBottom > pipeBottomY;
+
+        if (isCollidingX && isCollidingY) {
+            handleGameOver();
+            return;
+        }
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState, pipes]);
+  }, [birdY, birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState, pipes]);
   
   const restartGame = useCallback(() => {
     setGameState('waiting'); // Go to waiting screen first
@@ -234,21 +232,19 @@ export function SkyFlapGame() {
         }
     };
   
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.code === 'Space') {
+            handleAction(e);
+        }
+    };
+
     window.addEventListener('click', handleAction);
-    window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space') {
-        handleAction(e);
-      }
-    });
+    window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('touchend', handleAction);
   
     return () => {
       window.removeEventListener('click', handleAction);
-      window.removeEventListener('keydown', (e) => {
-        if (e.code === 'Space') {
-          handleAction(e);
-        }
-      });
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('touchend', handleAction);
     };
   }, [gameState, flap, startGame, restartGame]);
