@@ -19,7 +19,7 @@ const BIRD_X = 80;
 
 const INITIAL_GAME_SETTINGS = {
   gameSpeedMultiplier: 1.5,
-  pipeSpawnRate: 1500,
+  pipeSpawnRate: 1800,
   difficultyLevel: 'easy' as 'easy' | 'medium' | 'hard',
 };
 
@@ -209,7 +209,7 @@ export function SkyFlapGame() {
       });
 
       // Scale Pipe Gap - making it proportional to screen height
-      const newPipeGap = Math.max(150, Math.min(250, 200 * heightRatio));
+      const newPipeGap = Math.max(150, 180 + 50 * (heightRatio - 1));
       setGameSettings(prev => ({...prev, pipeGapSize: newPipeGap }));
 
       if (gameState === 'waiting') {
