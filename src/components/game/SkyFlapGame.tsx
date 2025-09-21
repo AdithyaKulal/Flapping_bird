@@ -12,8 +12,8 @@ import { GameOverScreen } from './GameOverScreen';
 
 // Game Constants
 const BIRD_SIZE = 40;
-const GRAVITY = 0.3;
-const JUMP_STRENGTH = -6;
+const GRAVITY = 0.25;
+const JUMP_STRENGTH = -5;
 const BIRD_ROTATION_UP = -20;
 const BIRD_ROTATION_DOWN = 40;
 
@@ -75,8 +75,10 @@ export function SkyFlapGame() {
 
 
   const flap = useCallback(() => {
-    setBirdVelocity(JUMP_STRENGTH);
-  }, []);
+    if (gameState === 'playing') {
+      setBirdVelocity(JUMP_STRENGTH);
+    }
+  }, [gameState]);
 
   const stopGame = useCallback(() => {
     if (gameLoopRef.current) {
@@ -196,21 +198,19 @@ export function SkyFlapGame() {
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
   }, [birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState]);
-
+  
   const startGame = useCallback(() => {
     setGameState('playing');
     setBirdY(gameDimensions.height / 2);
     setBirdVelocity(0);
     setPipes([]);
     setScore(0);
-    flap();
-  }, [gameDimensions.height, flap]);
+    setBirdVelocity(JUMP_STRENGTH);
+  }, [gameDimensions.height]);
 
   const restartGame = useCallback(() => {
-    if (gameState === 'gameOver') {
-      startGame();
-    }
-  }, [gameState, startGame]);
+    startGame();
+  }, [startGame]);
 
 
   useEffect(() => {
@@ -229,46 +229,28 @@ export function SkyFlapGame() {
     };
   }, [gameState, gameLoop, stopGame]);
 
-
   useEffect(() => {
-    const handleFlapAction = (e: Event) => {
+    const handleAction = (e: MouseEvent | TouchEvent | KeyboardEvent) => {
         e.preventDefault();
-        flap();
-    };
-
-    if (gameState === 'playing') {
-      window.addEventListener('keydown', handleFlapAction);
-      window.addEventListener('click', handleFlapAction);
-      window.addEventListener('touchend', handleFlapAction);
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleFlapAction);
-      window.removeEventListener('click', handleFlapAction);
-      window.removeEventListener('touchend', handleFlapAction);
-    };
-  }, [gameState, flap]);
-  
-  useEffect(() => {
-    const handleStartAction = (e: Event) => {
-        if ( (e instanceof KeyboardEvent && e.code === 'Space') || !(e instanceof KeyboardEvent) ) {
-            e.preventDefault();
-            startGame();
+        if (gameState === 'playing') {
+            flap();
+        } else if (gameState === 'waiting') {
+            if ((e instanceof KeyboardEvent && e.code === 'Space') || !(e instanceof KeyboardEvent)) {
+                startGame();
+            }
         }
     };
-
-    if (gameState === 'waiting') {
-        window.addEventListener('keydown', handleStartAction, { once: true });
-        window.addEventListener('click', handleStartAction, { once: true });
-        window.addEventListener('touchend', handleStartAction, { once: true });
-    }
-
+  
+    window.addEventListener('click', handleAction);
+    window.addEventListener('keydown', handleAction);
+    window.addEventListener('touchend', handleAction);
+  
     return () => {
-      window.removeEventListener('keydown', handleStartAction);
-      window.removeEventListener('click', handleStartAction);
-      window.removeEventListener('touchend', handleStartAction);
+      window.removeEventListener('click', handleAction);
+      window.removeEventListener('keydown', handleAction);
+      window.removeEventListener('touchend', handleAction);
     };
-  }, [gameState, startGame]);
+  }, [gameState, flap, startGame]);
 
 
   return (
