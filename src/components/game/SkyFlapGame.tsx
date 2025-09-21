@@ -75,10 +75,8 @@ export function SkyFlapGame() {
 
 
   const flap = useCallback(() => {
-    if (gameState === 'playing' || gameState === 'waiting') {
       setBirdVelocity(JUMP_STRENGTH);
-    }
-  }, [gameState]);
+  }, []);
 
   const stopGame = useCallback(() => {
     if (gameLoopRef.current) {
@@ -200,8 +198,8 @@ export function SkyFlapGame() {
     setPipes([]);
     setScore(0);
     stopGame();
+    flap(); // Flap once to start
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-    flap();
   }, [gameDimensions.height, gameLoop, stopGame, flap]);
 
 
