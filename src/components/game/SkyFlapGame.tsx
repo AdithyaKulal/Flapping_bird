@@ -1,26 +1,25 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useToast } from "@/hooks/use-toast";
 import AnimatedBackground from './AnimatedBackground';
 import { Bird } from './Bird';
 import { Pipe } from './Pipe';
 import { Score } from './Score';
 import { StartScreen } from './StartScreen';
 import { GameOverScreen } from './GameOverScreen';
-import { adjustDifficulty, AdjustDifficultyInput } from '@/ai/flows/dynamic-difficulty-adjustment';
 
-// Game Constants
-const GRAVITY = 0.08;
-const JUMP_STRENGTH = -3.5;
+// Game Constants - Base values for a standard desktop height (e.g., 800px)
+const BASE_GRAVITY = 0.08;
+const BASE_JUMP_STRENGTH = -3.5;
+const BASE_HEIGHT = 800; // A reference height for scaling
+
 const BIRD_SIZE = 40;
 const PIPE_WIDTH = 80;
 const BIRD_X = 80;
 
 const INITIAL_GAME_SETTINGS = {
   gameSpeedMultiplier: 1.5,
-  pipeGapSize: 220,
-  pipeSpawnRate: 1400,
+  pipeSpawnRate: 1500,
   difficultyLevel: 'easy' as 'easy' | 'medium' | 'hard',
 };
 
@@ -39,18 +38,27 @@ export function SkyFlapGame() {
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
   const [gamesPlayed, setGamesPlayed] = useState(0);
-  const [gameSettings, setGameSettings] = useState(INITIAL_GAME_SETTINGS);
+  const [gameSettings, setGameSettings] = useState({
+      ...INITIAL_GAME_SETTINGS,
+      pipeGapSize: 200, // Initial value
+  });
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  // Scaled physics constants
+  const [physics, setPhysics] = useState({
+    gravity: BASE_GRAVITY,
+    jumpStrength: BASE_JUMP_STRENGTH,
+  });
+
 
   const gameLoopRef = useRef<number | null>(null);
   const pipeSpawnTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const { toast } = useToast();
 
   const flap = useCallback(() => {
     if (gameState === 'playing') {
-      setBirdVelocity(JUMP_STRENGTH);
+      setBirdVelocity(physics.jumpStrength);
     }
-  }, [gameState]);
+  }, [gameState, physics.jumpStrength]);
 
   const startGame = useCallback(() => {
     setGameState('playing');
@@ -92,7 +100,7 @@ export function SkyFlapGame() {
     if (gameState !== 'playing') return;
   
     // All calculations are done first
-    let newBirdVelocity = birdVelocity + GRAVITY;
+    let newBirdVelocity = birdVelocity + physics.gravity;
     let newBirdY = birdY + newBirdVelocity;
     let newBirdRotation = Math.max(-30, Math.min(90, newBirdVelocity * 6));
     let newPipes = pipes.map(p => ({ ...p, x: p.x - 2 * gameSettings.gameSpeedMultiplier }));
@@ -146,7 +154,7 @@ export function SkyFlapGame() {
       }
       gameLoopRef.current = requestAnimationFrame(gameLoop);
     }
-  }, [birdY, birdVelocity, pipes, gameState, dimensions.height, gameSettings.gameSpeedMultiplier, gameSettings.pipeGapSize, handleGameOver]);
+  }, [birdY, birdVelocity, pipes, gameState, dimensions.height, gameSettings.gameSpeedMultiplier, gameSettings.pipeGapSize, handleGameOver, physics.gravity]);
 
   useEffect(() => {
     if (gameState !== 'playing') return;
@@ -189,6 +197,21 @@ export function SkyFlapGame() {
     const handleResize = () => {
       const newDimensions = { width: window.innerWidth, height: window.innerHeight };
       setDimensions(newDimensions);
+
+      // --- Responsive Scaling Logic ---
+      const heightRatio = newDimensions.height / BASE_HEIGHT;
+      
+      // Scale Jump Strength
+      const scaledJump = BASE_JUMP_STRENGTH * heightRatio;
+      setPhysics({
+        gravity: BASE_GRAVITY * heightRatio,
+        jumpStrength: scaledJump,
+      });
+
+      // Scale Pipe Gap - making it proportional to screen height
+      const newPipeGap = Math.max(150, Math.min(250, 200 * heightRatio));
+      setGameSettings(prev => ({...prev, pipeGapSize: newPipeGap }));
+
       if (gameState === 'waiting') {
         setBirdY(newDimensions.height / 2);
       }
@@ -205,7 +228,7 @@ export function SkyFlapGame() {
     setBirdY(window.innerHeight / 2);
 
     return () => window.removeEventListener('resize', handleResize);
-  }, []); 
+  }, [gameState]);
 
 
   useEffect(() => {
