@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { adjustDifficulty } from '@/ai/flows/dynamic-difficulty-adjustment';
 import { useToast } from "@/hooks/use-toast";
 import AnimatedBackground from './AnimatedBackground';
 import { Bird } from './Bird';
@@ -66,34 +65,9 @@ export function SkyFlapGame() {
     const newGamesPlayed = gamesPlayed + 1;
     setGamesPlayed(newGamesPlayed);
     localStorage.setItem('skyFlapGamesPlayed', newGamesPlayed.toString());
-
-    // Only call AI if API key is present
-    if (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY) {
-      try {
-        const nextDifficulty = await adjustDifficulty({
-          score,
-          pipesPassed: score,
-          gamesPlayed: newGamesPlayed,
-          highScore,
-        });
-        setGameSettings(prev => ({ ...prev, ...nextDifficulty }));
-        console.log("Difficulty adjusted by AI:", nextDifficulty);
-      } catch (error) {
-        console.error("AI Error: Failed to adjust difficulty. Using default settings.", error);
-        setGameSettings(INITIAL_GAME_SETTINGS);
-        toast({
-          title: "AI Difficulty Adjustment Failed",
-          description: "Could not fetch new difficulty settings. Using defaults.",
-          variant: "destructive",
-        });
-      }
-    } else {
-        console.warn("GEMINI_API_KEY not found. Skipping AI difficulty adjustment.");
-        setGameSettings(INITIAL_GAME_SETTINGS);
-    }
-
+    setGameSettings(INITIAL_GAME_SETTINGS);
     startGame();
-  }, [gamesPlayed, score, highScore, toast, startGame]);
+  }, [gamesPlayed, startGame]);
 
   const handleUserAction = useCallback(() => {
     if (gameState === 'playing') {
@@ -120,22 +94,23 @@ export function SkyFlapGame() {
   const gameLoop = useCallback(() => {
     if (gameState !== 'playing') return;
   
+    // All calculations are done first
     let newBirdVelocity = birdVelocity + GRAVITY;
     let newBirdY = birdY + newBirdVelocity;
     let newBirdRotation = Math.max(-30, Math.min(90, newBirdVelocity * 6));
-  
     let newPipes = pipes.map(p => ({ ...p, x: p.x - 2 * gameSettings.gameSpeedMultiplier }));
+    let shouldIncrementScore = false;
   
     const scorePipe = newPipes.find(p => !p.passed && p.x + PIPE_WIDTH < BIRD_X);
     if (scorePipe) {
-      setScore(s => s + 1);
+      shouldIncrementScore = true;
       newPipes = newPipes.map(p =>
         p.x === scorePipe.x ? { ...p, passed: true } : p
       );
     }
   
     let isGameOver = false;
-    const birdRadius = BIRD_SIZE / 2 - 10;
+    const birdRadius = BIRD_SIZE / 2 - 5; // Reduced hitbox
     const birdLeft = BIRD_X - birdRadius;
     const birdRight = BIRD_X + birdRadius;
     const birdTop = newBirdY - birdRadius;
@@ -161,6 +136,7 @@ export function SkyFlapGame() {
       }
     }
   
+    // State updates are batched here
     if (isGameOver) {
       handleGameOver();
     } else {
@@ -168,6 +144,9 @@ export function SkyFlapGame() {
       setBirdVelocity(newBirdVelocity);
       setBirdRotation(newBirdRotation);
       setPipes(newPipes.filter(p => p.x > -PIPE_WIDTH));
+      if (shouldIncrementScore) {
+        setScore(s => s + 1);
+      }
       gameLoopRef.current = requestAnimationFrame(gameLoop);
     }
   }, [birdY, birdVelocity, pipes, gameState, dimensions.height, gameSettings.gameSpeedMultiplier, gameSettings.pipeGapSize, handleGameOver]);
