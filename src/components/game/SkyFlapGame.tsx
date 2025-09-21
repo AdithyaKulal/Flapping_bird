@@ -75,7 +75,7 @@ export function SkyFlapGame() {
 
 
   const flap = useCallback(() => {
-    if (gameState === 'playing') {
+    if (gameState === 'playing' || gameState === 'waiting') {
       setBirdVelocity(JUMP_STRENGTH);
     }
   }, [gameState]);
@@ -201,14 +201,15 @@ export function SkyFlapGame() {
     setScore(0);
     stopGame();
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameDimensions.height, gameLoop, stopGame]);
+    flap();
+  }, [gameDimensions.height, gameLoop, stopGame, flap]);
 
 
   useEffect(() => {
     const handleAction = () => {
         if (gameState === 'waiting') {
             startGame();
-        } else {
+        } else if (gameState === 'playing') {
             flap();
         }
     };
