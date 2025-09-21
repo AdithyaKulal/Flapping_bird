@@ -1,5 +1,8 @@
 "use client";
 
+// Game Constants
+const BIRD_X = 80; // Bird's horizontal position
+
 type BirdProps = {
   y: number;
   rotation: number;
@@ -13,7 +16,7 @@ export const Bird = ({ y, rotation }: BirdProps) => {
         width: '40px',
         height: '40px',
         top: `${y}px`,
-        left: '20%',
+        left: `${BIRD_X}px`,
         transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
         transformOrigin: 'center'
       }}
