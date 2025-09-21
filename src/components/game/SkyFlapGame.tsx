@@ -11,7 +11,7 @@ import { GameOverScreen } from './GameOverScreen';
 import { adjustDifficulty, AdjustDifficultyInput } from '@/ai/flows/dynamic-difficulty-adjustment';
 
 // Game Constants
-const GRAVITY = 0.1;
+const GRAVITY = 0.08;
 const JUMP_STRENGTH = -3.5;
 const BIRD_SIZE = 40;
 const PIPE_WIDTH = 80;
@@ -73,10 +73,8 @@ export function SkyFlapGame() {
       flap();
     } else if (gameState === 'waiting') {
       startGame();
-    } else if (gameState === 'gameOver') {
-      resetGame();
     }
-  }, [gameState, flap, startGame, resetGame]);
+  }, [gameState, flap, startGame]);
 
   const handleGameOver = useCallback(() => {
     if (gameState === 'gameOver') return;
@@ -115,7 +113,7 @@ export function SkyFlapGame() {
     const birdTop = newBirdY - birdRadius;
     const birdBottom = newBirdY + birdRadius;
   
-    if (newBirdY + BIRD_SIZE / 2 > dimensions.height || newBirdY - BIRD_SIZE / 2 < 0) {
+    if (newBirdY + birdRadius > dimensions.height || newBirdY - birdRadius < 0) {
       isGameOver = true;
     }
   
@@ -159,7 +157,7 @@ export function SkyFlapGame() {
       const topHeight = Math.random() * (maxTop - minTop) + minTop;
       
       setPipes(prev => [...prev, { x: dimensions.width, topHeight, passed: false }]);
-      pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate);
+      pipeSpawnTimerRef.current = setTimeout(spawnPipe, gameSettings.pipeSpawnRate / gameSettings.gameSpeedMultiplier);
     };
     
     if (pipeSpawnTimerRef.current) clearTimeout(pipeSpawnTimerRef.current);
