@@ -8,10 +8,11 @@ import { Pipe } from './Pipe';
 import { Score } from './Score';
 import { StartScreen } from './StartScreen';
 import { GameOverScreen } from './GameOverScreen';
+import { adjustDifficulty, AdjustDifficultyInput } from '@/ai/flows/dynamic-difficulty-adjustment';
 
 // Game Constants
-const GRAVITY = 0.17;
-const JUMP_STRENGTH = -4.0;
+const GRAVITY = 0.1;
+const JUMP_STRENGTH = -3.5;
 const BIRD_SIZE = 40;
 const PIPE_WIDTH = 80;
 const BIRD_X = 80;
@@ -62,12 +63,10 @@ export function SkyFlapGame() {
   }, [dimensions.height, flap]);
 
   const resetGame = useCallback(async () => {
-    const newGamesPlayed = gamesPlayed + 1;
-    setGamesPlayed(newGamesPlayed);
-    localStorage.setItem('skyFlapGamesPlayed', newGamesPlayed.toString());
-    setGameSettings(INITIAL_GAME_SETTINGS);
+    setGameState('waiting');
+    setGamesPlayed(prev => prev + 1);
     startGame();
-  }, [gamesPlayed, startGame]);
+  }, [startGame]);
 
   const handleUserAction = useCallback(() => {
     if (gameState === 'playing') {
@@ -110,7 +109,7 @@ export function SkyFlapGame() {
     }
   
     let isGameOver = false;
-    const birdRadius = BIRD_SIZE / 2 - 5; // Reduced hitbox
+    const birdRadius = BIRD_SIZE / 2;
     const birdLeft = BIRD_X - birdRadius;
     const birdRight = BIRD_X + birdRadius;
     const birdTop = newBirdY - birdRadius;
