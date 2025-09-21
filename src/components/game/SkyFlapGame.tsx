@@ -75,8 +75,10 @@ export function SkyFlapGame() {
 
 
   const flap = useCallback(() => {
-      setBirdVelocity(JUMP_STRENGTH);
-  }, []);
+      if (gameState === 'playing') {
+        setBirdVelocity(JUMP_STRENGTH);
+      }
+  }, [gameState]);
 
   const stopGame = useCallback(() => {
     if (gameLoopRef.current) {
@@ -125,71 +127,75 @@ export function SkyFlapGame() {
     const deltaTime = timestamp - lastTimeRef.current;
     lastTimeRef.current = timestamp;
 
-    setBirdVelocity(v => v + GRAVITY);
     let newY = 0;
-    setBirdY(y => {
-      newY = y + birdVelocity;
-      if (newY > gameDimensions.height - BIRD_SIZE / 2) {
-        handleGameOver();
-        return gameDimensions.height - BIRD_SIZE / 2;
-      }
-      if (newY < BIRD_SIZE / 2) {
-        setBirdVelocity(0);
-        return BIRD_SIZE / 2;
-      }
-      return newY;
+    setBirdVelocity(v => {
+      const newVelocity = v + GRAVITY;
+      setBirdY(y => {
+        newY = y + newVelocity;
+        if (newY > gameDimensions.height - BIRD_SIZE / 2) {
+          handleGameOver();
+          return gameDimensions.height - BIRD_SIZE / 2;
+        }
+        if (newY < BIRD_SIZE / 2) {
+          return BIRD_SIZE / 2;
+        }
+        return newY;
+      });
+      return newVelocity;
     });
 
-    setBirdRotation(() => {
-        const newRotation = birdVelocity * 4;
+    setBirdRotation((r) => {
+        const newRotation = birdVelocity * 3;
         return Math.max(BIRD_ROTATION_UP, Math.min(BIRD_ROTATION_DOWN, newRotation));
     });
 
-    pipeTimerRef.current += deltaTime;
-    if (pipeTimerRef.current > gameSettings.pipeSpawnRate) {
-        pipeTimerRef.current = 0;
-        const minTop = gameDimensions.height * 0.1;
-        const maxTop = gameDimensions.height * 0.9 - gameSettings.pipeGapSize;
-        const topHeight = Math.floor(Math.random() * (maxTop - minTop) + minTop);
-        
-        setPipes(p => [...p, { x: gameDimensions.width, topHeight, passed: false }]);
-    }
-    
-    let scoreUpdated = false;
-    setPipes(currentPipes => {
-      const birdXCenter = gameDimensions.width * 0.2;
-      const birdLeft = birdXCenter - BIRD_SIZE / 2;
-      const birdRight = birdXCenter + BIRD_SIZE / 2;
-
-      const newPipes = currentPipes.map(pipe => {
-        const newPipeX = pipe.x - 2 * gameSettings.gameSpeedMultiplier;
-        const pipeRight = newPipeX + gameSettings.pipeWidth;
-
-        if (
-            birdRight > newPipeX &&
-            birdLeft < pipeRight &&
-            (newY - BIRD_SIZE/2 < pipe.topHeight || newY + BIRD_SIZE/2 > pipe.topHeight + gameSettings.pipeGapSize)
-        ) {
-            handleGameOver();
-        }
-
-        if (!pipe.passed && birdLeft > pipeRight) {
-            pipe.passed = true;
-            scoreUpdated = true;
-        }
-
-        return { ...pipe, x: newPipeX };
-      }).filter(pipe => pipe.x > -gameSettings.pipeWidth);
+    if (gameState === 'playing') {
+      pipeTimerRef.current += deltaTime;
+      if (pipeTimerRef.current > gameSettings.pipeSpawnRate) {
+          pipeTimerRef.current = 0;
+          const minTop = gameDimensions.height * 0.1;
+          const maxTop = gameDimensions.height * 0.9 - gameSettings.pipeGapSize;
+          const topHeight = Math.floor(Math.random() * (maxTop - minTop) + minTop);
+          
+          setPipes(p => [...p, { x: gameDimensions.width, topHeight, passed: false }]);
+      }
       
-      return newPipes;
-    });
-    
-    if (scoreUpdated) {
-        setScore(s => s + 1);
+      let scoreUpdated = false;
+      setPipes(currentPipes => {
+        const birdXCenter = gameDimensions.width * 0.2;
+        const birdLeft = birdXCenter - BIRD_SIZE / 2;
+        const birdRight = birdXCenter + BIRD_SIZE / 2;
+
+        const newPipes = currentPipes.map(pipe => {
+          const newPipeX = pipe.x - 2 * gameSettings.gameSpeedMultiplier;
+          const pipeRight = newPipeX + gameSettings.pipeWidth;
+
+          if (
+              birdRight > newPipeX &&
+              birdLeft < pipeRight &&
+              (newY - BIRD_SIZE/2 < pipe.topHeight || newY + BIRD_SIZE/2 > pipe.topHeight + gameSettings.pipeGapSize)
+          ) {
+              handleGameOver();
+          }
+
+          if (!pipe.passed && birdLeft > pipeRight) {
+              pipe.passed = true;
+              scoreUpdated = true;
+          }
+
+          return { ...pipe, x: newPipeX };
+        }).filter(pipe => pipe.x > -gameSettings.pipeWidth);
+        
+        return newPipes;
+      });
+      
+      if (scoreUpdated) {
+          setScore(s => s + 1);
+      }
     }
     
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [birdVelocity, gameDimensions, gameSettings, handleGameOver]);
+  }, [birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState]);
 
   const startGame = useCallback(() => {
     setGameState('playing');
@@ -197,42 +203,66 @@ export function SkyFlapGame() {
     setBirdVelocity(0);
     setPipes([]);
     setScore(0);
-    stopGame();
-    flap(); // Flap once to start
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameDimensions.height, gameLoop, stopGame, flap]);
+    setBirdVelocity(JUMP_STRENGTH); // Flap once to start
+  }, [gameDimensions.height]);
 
 
   useEffect(() => {
-    const handleAction = () => {
-        if (gameState === 'waiting') {
+    if (gameState === 'playing' && !gameLoopRef.current) {
+        lastTimeRef.current = 0;
+        gameLoopRef.current = requestAnimationFrame(gameLoop);
+    } else if (gameState !== 'playing') {
+        stopGame();
+    }
+    return stopGame;
+  }, [gameState, gameLoop, stopGame]);
+
+
+  useEffect(() => {
+    const handleFlapAction = (e: Event) => {
+        e.preventDefault();
+        flap();
+    };
+
+    if (gameState === 'playing') {
+        window.addEventListener('keydown', handleFlapAction);
+        window.addEventListener('click', handleFlapAction);
+        window.addEventListener('touchend', handleFlapAction);
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleFlapAction);
+      window.removeEventListener('click', handleFlapAction);
+      window.removeEventListener('touchend', handleFlapAction);
+    };
+  }, [gameState, flap]);
+  
+  useEffect(() => {
+    const handleStartAction = (e: Event) => {
+        if ( (e instanceof KeyboardEvent && e.code === 'Space') || !(e instanceof KeyboardEvent) ) {
+            e.preventDefault();
             startGame();
-        } else if (gameState === 'playing') {
-            flap();
         }
     };
 
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.code === 'Space' || e.key === ' ') {
-        e.preventDefault();
-        handleAction();
-      }
-    };
-    
-    window.addEventListener('keydown', handleKeyPress);
-    window.addEventListener('click', handleAction);
-    window.addEventListener('touchend', handleAction);
+    if (gameState === 'waiting') {
+        window.addEventListener('keydown', handleStartAction);
+        window.addEventListener('click', handleStartAction);
+        window.addEventListener('touchend', handleStartAction);
+    }
 
     return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-      window.removeEventListener('click', handleAction);
-      window.removeEventListener('touchend', handleAction);
+      window.removeEventListener('keydown', handleStartAction);
+      window.removeEventListener('click', handleStartAction);
+      window.removeEventListener('touchend', handleStartAction);
     };
-  }, [gameState, flap, startGame]);
+  }, [gameState, startGame]);
 
 
   return (
-    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline">
+    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline"
+      // onClick={() => gameState === 'playing' && flap()}
+    >
       <AnimatedBackground />
 
       {pipes.map((pipe, index) => (
