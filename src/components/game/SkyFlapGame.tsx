@@ -52,50 +52,58 @@ export function SkyFlapGame() {
     }
   }, [gameState]);
 
-  const resetGame = useCallback(async () => {
-    setGameState('waiting');
+  const startGame = useCallback(() => {
+    setGameState('playing');
     setBirdY(dimensions.height / 2);
     setBirdVelocity(0);
     setBirdRotation(0);
     setPipes([]);
     setScore(0);
+    flap();
+  }, [dimensions.height, flap]);
 
+  const resetGame = useCallback(async () => {
     const newGamesPlayed = gamesPlayed + 1;
     setGamesPlayed(newGamesPlayed);
     localStorage.setItem('skyFlapGamesPlayed', newGamesPlayed.toString());
 
-    try {
-      const nextDifficulty = await adjustDifficulty({
-        score,
-        pipesPassed: score,
-        gamesPlayed: newGamesPlayed,
-        highScore,
-      });
-      setGameSettings(prev => ({ ...prev, ...nextDifficulty }));
-    } catch (error) {
-      console.error("Failed to adjust difficulty:", error);
-      toast({
-        title: "AI Error",
-        description: "Could not fetch new difficulty settings.",
-        variant: "destructive",
-      });
+    // Only call AI if API key is present
+    if (process.env.NEXT_PUBLIC_GEMINI_API_KEY || process.env.GEMINI_API_KEY) {
+      try {
+        const nextDifficulty = await adjustDifficulty({
+          score,
+          pipesPassed: score,
+          gamesPlayed: newGamesPlayed,
+          highScore,
+        });
+        setGameSettings(prev => ({ ...prev, ...nextDifficulty }));
+        console.log("Difficulty adjusted by AI:", nextDifficulty);
+      } catch (error) {
+        console.error("AI Error: Failed to adjust difficulty. Using default settings.", error);
+        setGameSettings(INITIAL_GAME_SETTINGS);
+        toast({
+          title: "AI Difficulty Adjustment Failed",
+          description: "Could not fetch new difficulty settings. Using defaults.",
+          variant: "destructive",
+        });
+      }
+    } else {
+        console.warn("GEMINI_API_KEY not found. Skipping AI difficulty adjustment.");
+        setGameSettings(INITIAL_GAME_SETTINGS);
     }
 
-    // Immediately start the new game
-    setGameState('playing');
-    flap();
-  }, [dimensions.height, gamesPlayed, score, highScore, toast, flap]);
+    startGame();
+  }, [gamesPlayed, score, highScore, toast, startGame]);
 
   const handleUserAction = useCallback(() => {
     if (gameState === 'playing') {
       flap();
     } else if (gameState === 'waiting') {
-      setGameState('playing');
-      flap();
+      startGame();
     } else if (gameState === 'gameOver') {
       resetGame();
     }
-  }, [gameState, flap, resetGame]);
+  }, [gameState, flap, startGame, resetGame]);
 
   const handleGameOver = useCallback(() => {
     if (gameState === 'gameOver') return;
@@ -108,16 +116,14 @@ export function SkyFlapGame() {
     setHighScore(newHighScore);
     localStorage.setItem('skyFlapHighScore', newHighScore.toString());
   }, [gameState, score, highScore]);
-
+  
   const gameLoop = useCallback(() => {
     if (gameState !== 'playing') return;
   
-    // Bird physics
     let newBirdVelocity = birdVelocity + GRAVITY;
     let newBirdY = birdY + newBirdVelocity;
     let newBirdRotation = Math.max(-30, Math.min(90, newBirdVelocity * 6));
   
-    // Pipe movement and scoring
     let newPipes = pipes.map(p => ({ ...p, x: p.x - 2 * gameSettings.gameSpeedMultiplier }));
   
     const scorePipe = newPipes.find(p => !p.passed && p.x + PIPE_WIDTH < BIRD_X);
@@ -128,7 +134,6 @@ export function SkyFlapGame() {
       );
     }
   
-    // Collision detection
     let isGameOver = false;
     const birdRadius = BIRD_SIZE / 2 - 10;
     const birdLeft = BIRD_X - birdRadius;
@@ -136,12 +141,10 @@ export function SkyFlapGame() {
     const birdTop = newBirdY - birdRadius;
     const birdBottom = newBirdY + birdRadius;
   
-    // Floor and Ceiling collision
     if (newBirdY + BIRD_SIZE / 2 > dimensions.height || newBirdY - BIRD_SIZE / 2 < 0) {
       isGameOver = true;
     }
   
-    // Pipe collision
     for (const pipe of newPipes) {
       const pipeLeft = pipe.x;
       const pipeRight = pipe.x + PIPE_WIDTH;
@@ -159,8 +162,7 @@ export function SkyFlapGame() {
     }
   
     if (isGameOver) {
-        // Use a function to safely trigger game over logic outside of the direct render path
-        requestAnimationFrame(handleGameOver);
+      handleGameOver();
     } else {
       setBirdY(newBirdY);
       setBirdVelocity(newBirdVelocity);
@@ -170,7 +172,6 @@ export function SkyFlapGame() {
     }
   }, [birdY, birdVelocity, pipes, gameState, dimensions.height, gameSettings.gameSpeedMultiplier, gameSettings.pipeGapSize, handleGameOver]);
 
-  // Pipe Generation Effect
   useEffect(() => {
     if (gameState !== 'playing') return;
 
@@ -191,9 +192,8 @@ export function SkyFlapGame() {
         clearTimeout(pipeSpawnTimerRef.current);
       }
     };
-  }, [gameState, dimensions.width, dimensions.height, gameSettings.pipeGapSize, gameSettings.pipeSpawnRate, gameSettings.gameSpeedMultiplier, pipes]);
+  }, [gameState, dimensions.width, dimensions.height, gameSettings.pipeGapSize, gameSettings.pipeSpawnRate, gameSettings.gameSpeedMultiplier]);
 
-  // Main Game Loop Controller
   useEffect(() => {
     if (gameState === 'playing') {
       gameLoopRef.current = requestAnimationFrame(gameLoop);
@@ -209,7 +209,6 @@ export function SkyFlapGame() {
     };
   }, [gameState, gameLoop]);
 
-  // Setup and Cleanup
   useEffect(() => {
     const handleResize = () => {
       const newDimensions = { width: window.innerWidth, height: window.innerHeight };
@@ -230,7 +229,7 @@ export function SkyFlapGame() {
     setBirdY(window.innerHeight / 2);
 
     return () => window.removeEventListener('resize', handleResize);
-  }, []); // Only run on initial mount
+  }, []); 
 
 
   useEffect(() => {
@@ -257,7 +256,7 @@ export function SkyFlapGame() {
   }, [handleUserAction]);
 
   return (
-    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline" onClick={handleUserAction}>
+    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline">
       <AnimatedBackground />
 
       <Bird y={birdY} rotation={birdRotation} />
