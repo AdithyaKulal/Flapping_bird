@@ -33,9 +33,10 @@ export const Pipe = ({ x, topHeight, gap, pipeWidth }: PipeProps) => {
 
       {/* Bottom Pipe */}
       <div
-        className="absolute bottom-0 w-full bg-primary border-4 border-primary-foreground/20 shadow-lg"
+        className="absolute w-full bg-primary border-4 border-primary-foreground/20 shadow-lg"
         style={{
           top: `${bottomPipeTop}px`,
+          bottom: 0,
           borderBottom: 'none',
           borderTopLeftRadius: '10px',
           borderTopRightRadius: '10px'
