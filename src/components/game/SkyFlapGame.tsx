@@ -75,7 +75,7 @@ export function SkyFlapGame() {
 
 
   const flap = useCallback(() => {
-      if (gameState === 'playing') {
+      if (gameState === 'playing' || gameState === 'waiting') {
         setBirdVelocity(JUMP_STRENGTH);
       }
   }, [gameState]);
@@ -83,6 +83,7 @@ export function SkyFlapGame() {
   const stopGame = useCallback(() => {
     if (gameLoopRef.current) {
       cancelAnimationFrame(gameLoopRef.current);
+      gameLoopRef.current = undefined;
     }
     lastTimeRef.current = 0;
     pipeTimerRef.current = 0;
@@ -137,7 +138,8 @@ export function SkyFlapGame() {
           return gameDimensions.height - BIRD_SIZE / 2;
         }
         if (newY < BIRD_SIZE / 2) {
-          return BIRD_SIZE / 2;
+          newY = BIRD_SIZE / 2;
+          return newY;
         }
         return newY;
       });
@@ -198,13 +200,13 @@ export function SkyFlapGame() {
   }, [birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState]);
 
   const startGame = useCallback(() => {
-    setGameState('playing');
     setBirdY(gameDimensions.height / 2);
     setBirdVelocity(0);
     setPipes([]);
     setScore(0);
-    setBirdVelocity(JUMP_STRENGTH); // Flap once to start
-  }, [gameDimensions.height]);
+    flap();
+    setGameState('playing');
+  }, [gameDimensions.height, flap]);
 
 
   useEffect(() => {
@@ -214,21 +216,27 @@ export function SkyFlapGame() {
     } else if (gameState !== 'playing') {
         stopGame();
     }
-    return stopGame;
+    
+    return () => {
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current);
+        gameLoopRef.current = undefined;
+      }
+    };
   }, [gameState, gameLoop, stopGame]);
 
 
   useEffect(() => {
     const handleFlapAction = (e: Event) => {
         e.preventDefault();
-        flap();
+        if (gameState === 'playing') {
+            flap();
+        }
     };
 
-    if (gameState === 'playing') {
-        window.addEventListener('keydown', handleFlapAction);
-        window.addEventListener('click', handleFlapAction);
-        window.addEventListener('touchend', handleFlapAction);
-    }
+    window.addEventListener('keydown', handleFlapAction);
+    window.addEventListener('click', handleFlapAction);
+    window.addEventListener('touchend', handleFlapAction);
 
     return () => {
       window.removeEventListener('keydown', handleFlapAction);
@@ -246,9 +254,9 @@ export function SkyFlapGame() {
     };
 
     if (gameState === 'waiting') {
-        window.addEventListener('keydown', handleStartAction);
-        window.addEventListener('click', handleStartAction);
-        window.addEventListener('touchend', handleStartAction);
+        window.addEventListener('keydown', handleStartAction, { once: true });
+        window.addEventListener('click', handleStartAction, { once: true });
+        window.addEventListener('touchend', handleStartAction, { once: true });
     }
 
     return () => {
@@ -260,9 +268,7 @@ export function SkyFlapGame() {
 
 
   return (
-    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline"
-      // onClick={() => gameState === 'playing' && flap()}
-    >
+    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline">
       <AnimatedBackground />
 
       {pipes.map((pipe, index) => (
