@@ -12,8 +12,8 @@ import { GameOverScreen } from './GameOverScreen';
 
 // Game Constants
 const BIRD_SIZE = 40;
-const GRAVITY = 0.5;
-const JUMP_STRENGTH = -8;
+const GRAVITY = 0.3;
+const JUMP_STRENGTH = -6;
 const BIRD_ROTATION_UP = -20;
 const BIRD_ROTATION_DOWN = 40;
 
@@ -75,10 +75,8 @@ export function SkyFlapGame() {
 
 
   const flap = useCallback(() => {
-      if (gameState === 'playing' || gameState === 'waiting') {
-        setBirdVelocity(JUMP_STRENGTH);
-      }
-  }, [gameState]);
+    setBirdVelocity(JUMP_STRENGTH);
+  }, []);
 
   const stopGame = useCallback(() => {
     if (gameLoopRef.current) {
@@ -200,13 +198,19 @@ export function SkyFlapGame() {
   }, [birdVelocity, gameDimensions, gameSettings, handleGameOver, gameState]);
 
   const startGame = useCallback(() => {
+    setGameState('playing');
     setBirdY(gameDimensions.height / 2);
     setBirdVelocity(0);
     setPipes([]);
     setScore(0);
     flap();
-    setGameState('playing');
   }, [gameDimensions.height, flap]);
+
+  const restartGame = useCallback(() => {
+    if (gameState === 'gameOver') {
+      startGame();
+    }
+  }, [gameState, startGame]);
 
 
   useEffect(() => {
@@ -229,14 +233,14 @@ export function SkyFlapGame() {
   useEffect(() => {
     const handleFlapAction = (e: Event) => {
         e.preventDefault();
-        if (gameState === 'playing') {
-            flap();
-        }
+        flap();
     };
 
-    window.addEventListener('keydown', handleFlapAction);
-    window.addEventListener('click', handleFlapAction);
-    window.addEventListener('touchend', handleFlapAction);
+    if (gameState === 'playing') {
+      window.addEventListener('keydown', handleFlapAction);
+      window.addEventListener('click', handleFlapAction);
+      window.addEventListener('touchend', handleFlapAction);
+    }
 
     return () => {
       window.removeEventListener('keydown', handleFlapAction);
@@ -268,7 +272,7 @@ export function SkyFlapGame() {
 
 
   return (
-    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline">
+    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline" onClick={gameState === 'gameOver' ? restartGame : undefined}>
       <AnimatedBackground />
 
       {pipes.map((pipe, index) => (
@@ -286,7 +290,7 @@ export function SkyFlapGame() {
       {gameState === 'playing' && <Score score={score} />}
       {gameState === 'waiting' && <StartScreen />}
       {gameState === 'gameOver' && (
-        <GameOverScreen score={score} highScore={highScore} onRestart={startGame} />
+        <GameOverScreen score={score} highScore={highScore} onRestart={restartGame} />
       )}
     </main>
   );
