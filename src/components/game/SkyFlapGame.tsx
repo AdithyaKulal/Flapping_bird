@@ -73,11 +73,10 @@ export function SkyFlapGame() {
   const resetGame = useCallback(async () => {
     setGameState('waiting');
     setGamesPlayed(prev => prev + 1);
-    
-    // Reset to initial settings without calling AI
+
     setGameSettings({
-        ...INITIAL_GAME_SETTINGS,
-        pipeGapSize: gameSettings.pipeGapSize // Keep the last calculated gap size
+      ...INITIAL_GAME_SETTINGS,
+      pipeGapSize: gameSettings.pipeGapSize
     });
 
     startGame();
@@ -215,8 +214,10 @@ export function SkyFlapGame() {
         jumpStrength: scaledJump,
       });
 
-      // Scale Pipe Gap - making it proportional to screen height
-      const newPipeGap = Math.max(180, 200 * heightRatio);
+      // Scale Pipe Gap - making it INVERSELY proportional to screen height
+      // Smaller screen = bigger gap.
+      const invertedRatio = 1 / Math.max(0.5, heightRatio);
+      const newPipeGap = Math.max(180, Math.min(300, 200 * invertedRatio));
       setGameSettings(prev => ({...prev, pipeGapSize: newPipeGap }));
 
       if (gameState === 'waiting') {
