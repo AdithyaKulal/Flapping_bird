@@ -12,11 +12,11 @@ import { GameOverScreen } from './GameOverScreen';
 
 // Game Constants
 const BIRD_SIZE = 40;
-const GRAVITY = 0.2;
-const JUMP_STRENGTH = -4.5;
+const GRAVITY = 0.15;
+const JUMP_STRENGTH = -4;
 const BIRD_ROTATION_UP = -20;
 const BIRD_ROTATION_DOWN = 40;
-const COLLISION_BUFFER = 5; // Adds a small buffer to make collision less strict
+const COLLISION_BUFFER = 10; // Adds a small buffer to make collision less strict
 
 const INITIAL_GAME_SETTINGS = {
   gameSpeedMultiplier: 1.2,
@@ -235,54 +235,40 @@ export function SkyFlapGame() {
   }, [gameState, gameLoop, stopGame]);
 
  useEffect(() => {
-    const handleAction = (e: MouseEvent | TouchEvent | KeyboardEvent) => {
-        e.preventDefault();
+    const handleAction = () => {
         if (gameState === 'playing') {
             flap();
-        } else if (gameState === 'waiting' && ((e instanceof KeyboardEvent && e.code === 'Space') || !(e instanceof KeyboardEvent))) {
+        } else if (gameState === 'waiting') {
             startGame();
         }
     };
   
     const clickHandler = (e: MouseEvent) => {
-        if (gameState === 'waiting') {
-            startGame();
-        } else {
-            flap();
-        }
+        e.preventDefault();
+        handleAction();
     };
 
     const keydownHandler = (e: KeyboardEvent) => {
         if (e.code === 'Space') {
-            if (gameState === 'waiting') {
-                startGame();
-            } else {
-                flap();
-            }
+            e.preventDefault();
+            handleAction();
         }
     };
 
     window.addEventListener('click', clickHandler);
     window.addEventListener('keydown', keydownHandler);
-    window.addEventListener('touchend', flap);
+    window.addEventListener('touchend', handleAction);
   
     return () => {
       window.removeEventListener('click', clickHandler);
       window.removeEventListener('keydown', keydownHandler);
-      window.removeEventListener('touchend', flap);
+      window.removeEventListener('touchend', handleAction);
     };
   }, [gameState, flap, startGame]);
 
 
   return (
-    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline"
-        onClick={(e) => {
-            if (gameState === 'gameOver') {
-                e.stopPropagation();
-                restartGame();
-            }
-        }}
-    >
+    <main className="w-screen h-screen overflow-hidden relative bg-background select-none font-headline">
       <AnimatedBackground />
 
       {pipes.map((pipe, index) => (
