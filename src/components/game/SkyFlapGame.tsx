@@ -214,7 +214,7 @@ export function SkyFlapGame() {
       // Scale Pipe Gap - making it INVERSELY proportional to screen height
       // Smaller screen = bigger gap.
       const invertedRatio = 1 / Math.max(0.5, heightRatio);
-      const newPipeGap = Math.max(200, Math.min(350, 250 * invertedRatio));
+      const newPipeGap = Math.max(240, Math.min(400, 300 * invertedRatio));
       setGameSettings(prev => ({...prev, pipeGapSize: newPipeGap }));
 
       if (gameState === 'waiting') {
